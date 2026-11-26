@@ -1,0 +1,47 @@
+{
+  "_note": "Sponsored placements from King of the Hill. Edit freely: order here is the default order on the home page.",
+  "sponsor": {"name": "King of the Hill", "url": "https://www.kingofthehill.co.uk/"},
+  "trips": [
+    {
+      "key": "annapurna-ski-expedition",
+      "name": "Annapurna Ski Expedition",
+      "meta": "10 days · Feb 2027 and Feb 2028 · from £13,500",
+      "blurb": "Luxury ski expedition in the Annapurna region, skiing up to Thorong La (5,416m) from a heated private base camp. No touring experience needed.",
+      "image": "https://www.kingofthehill.co.uk/images/koth-and-hst-team-at-thorong-crop.webp",
+      "url": "https://www.kingofthehill.co.uk/annapurna-ski-expedition"
+    },
+    {
+      "key": "annapurna-sanctuary-ski-tour",
+      "name": "Annapurna Sanctuary Ski Tour",
+      "meta": "14 days · your first ski tour · waitlist open",
+      "blurb": "Ski the bowls around Annapurna Base Camp (4,130m), beneath Annapurna I. Built for confident piste skiers who have never toured.",
+      "image": "https://www.kingofthehill.co.uk/images/annapurna-i-south-face-from-the-sanctuary.webp",
+      "url": "https://www.kingofthehill.co.uk/annapurna-sanctuary-ski-tour"
+    },
+    {
+      "key": "mera-peak-ski-expedition",
+      "name": "Mera Peak Ski Expedition",
+      "meta": "19 days · 6,476m · waitlist open",
+      "blurb": "Climb Mera Peak and ski it: six planned ski days, heated camps and a helicopter out of the Hinku valley.",
+      "image": "https://www.kingofthehill.co.uk/images/view-from-the-summit-of-mera-peak.webp",
+      "url": "https://www.kingofthehill.co.uk/mera-peak-ski-expedition"
+    },
+    {
+      "key": "himlung-himal-ski-expedition",
+      "name": "Himlung Himal Ski Expedition",
+      "meta": "26 days · 7,126m · by invitation",
+      "blurb": "Ski a 7,000m peak from the hidden Nar Phu valley, with five to seven planned ski days and a helicopter in and out.",
+      "image": "https://www.kingofthehill.co.uk/images/himlung-himal-from-base-camp.webp",
+      "url": "https://www.kingofthehill.co.uk/himlung-himal-ski-expedition"
+    },
+    {
+      "key": "putha-hiunchuli-ski-expedition",
+      "name": "Putha Hiunchuli Ski Expedition",
+      "meta": "30 days · 7,246m · waitlist open",
+      "blurb": "Remote Dolpo and one of the most skiable 7,000m peaks in Nepal, with five to seven planned ski days.",
+      "image": "https://www.kingofthehill.co.uk/images/annapurna-i-from-himlung-himal.webp",
+      "url": "https://www.kingofthehill.co.uk/putha-hiunchuli-ski-expedition"
+    }
+  ],
+  "kit_list_url": "https://www.kingofthehill.co.uk/nepal-ski-touring-kit-list"
+}
