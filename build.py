@@ -587,10 +587,11 @@ def kit_tips(zones):
     tips = []
     lows = [(d["top_min"], z) for z in zones for d in z["days"][:7] if d["top_min"] is not None]
     cmin, cz = min(lows, key=lambda x: x[0]) if lows else (None, None)
+    low = str(round(cmin)).replace("-", "−") if cmin is not None else ""
     if cmin is not None and cmin <= -20:
-        tips.append(("Expedition down and mitts", f'Lows reach {round(cmin)}°C at {cz["top"]["name"]} this week. Pack a down jacket rated well below that, down mitts and a liner-glove system.'.replace("-", "−")))
+        tips.append(("Expedition down and mitts", f'Lows reach {low}°C at {cz["top"]["name"]} this week. Pack a down jacket rated well below that, down mitts and a liner-glove system.'))
     elif cmin is not None:
-        tips.append(("A proper down jacket", f'The coldest summit low this week is about {round(cmin)}°C. Bring an insulated jacket and warm gloves for the evenings at camp.'.replace("-", "−")))
+        tips.append(("A proper down jacket", f'The coldest summit low this week is about {low}°C. Bring an insulated jacket and warm gloves for the evenings at camp.'))
     fresh = [z for z in zones if z["snow"]["past72"] >= 10 or z["snow"]["next72"] >= 10]
     if fresh:
         names = ", ".join(z["name"] for z in fresh[:3])
