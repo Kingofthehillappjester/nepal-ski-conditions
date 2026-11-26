@@ -675,7 +675,7 @@ def forecast_table(z, which):
     rows = [row("Weather", [td(icon(wmo(p["code"], p["name"] != "Night")[1], "wi", wmo(p["code"], p["name"] != "Night")[0]), cls=D(i)) for i, p in enumerate(ps)], "wx"),
             row(f"Snow ({ul('s')})", [snow_cell(p["snow"], D(i)) for i, p in enumerate(ps)], "sn")]
     if any((p["rain"] or 0) >= 0.5 for p in ps):
-        rows.append(row("Rain (mm)", [td(f'{p["rain"]:.0f}' if (p["rain"] or 0) >= 0.5 else '<span class="na">–</span>', cls=D(i)) for i, p in enumerate(ps)]))
+        rows.append(row("Rain (mm)", [td(f'{p["rain"]:.1f}' if (p["rain"] or 0) >= 0.5 else '<span class="na">–</span>', cls=D(i)) for i, p in enumerate(ps)]))
     rows += [row(f"Max temp ({ul('t')})", [temp_cell(p["tmax"], D(i)) for i, p in enumerate(ps)]),
              row(f"Min temp ({ul('t')})", [temp_cell(p["tmin"], D(i)) for i, p in enumerate(ps)]),
              row(f"Feels like ({ul('t')})", [temp_cell(p["feels"], D(i)) for i, p in enumerate(ps)]),
