@@ -1,57 +1,65 @@
-// Nepal Ski Conditions: unit switch and "updated x ago". Metric is rendered by the server.
+// Nepal Ski Conditions: unit switch, top/base forecast tabs and "updated x ago".
+// Metric is rendered by the server; imperial is converted here.
 (function () {
   var KEY = 'nsc-units';
+  var LABELS = { t: ['°C', '°F'], s: ['cm', 'in'], e: ['m', 'ft'], w: ['km/h', 'mph'] };
   function store(get, val) {
     try { return get ? localStorage.getItem(KEY) : localStorage.setItem(KEY, val); } catch (e) { return null; }
   }
-  function fmt(kind, v, imperial) {
-    if (kind === 't') {
-      var c = imperial ? v * 9 / 5 + 32 : v;
-      return String(Math.round(c)).replace('-', '−') + '°';
-    }
-    if (kind === 's') {
-      var s = imperial ? v / 2.54 : v;
-      var txt = s >= 10 || s === 0 ? s.toFixed(0) : s.toFixed(1);
-      return txt + '<small>' + (imperial ? 'in' : 'cm') + '</small>';
-    }
-    if (kind === 'e') {
-      var e = imperial ? v * 3.28084 : v;
-      return Math.round(e).toLocaleString('en-GB') + '<small>' + (imperial ? 'ft' : 'm') + '</small>';
-    }
-    if (kind === 'w') {
-      var w = imperial ? v * 0.621371 : v;
-      return Math.round(w) + '<small>' + (imperial ? 'mph' : 'km/h') + '</small>';
-    }
+  function conv(kind, v, imp) {
+    if (!imp) return v;
+    if (kind === 't') return v * 9 / 5 + 32;
+    if (kind === 's') return v / 2.54;
+    if (kind === 'e') return v * 3.28084;
+    if (kind === 'w') return v * 0.621371;
     return v;
   }
+  function fmt(kind, v, imp, bare) {
+    var n = conv(kind, v, imp), unit = LABELS[kind] ? LABELS[kind][imp ? 1 : 0] : '';
+    var suffix = bare ? '' : '<small>' + unit + '</small>';
+    if (kind === 't') return String(Math.round(n)).replace('-', '−') + (bare ? '' : '°');
+    if (kind === 's') return (n >= 10 || Number.isInteger(n) ? n.toFixed(0) : n.toFixed(1)) + suffix;
+    if (kind === 'e') return (bare ? String(Math.round(n)) : Math.round(n).toLocaleString('en-GB')) + suffix;
+    if (kind === 'w') return Math.round(n) + suffix;
+    return String(v);
+  }
   function apply(units) {
-    var imperial = units === 'imperial';
+    var imp = units === 'imperial';
     var els = document.querySelectorAll('.u[data-k]');
     for (var i = 0; i < els.length; i++) {
       var el = els[i], v = parseFloat(el.getAttribute('data-v'));
-      if (!isNaN(v)) el.innerHTML = fmt(el.getAttribute('data-k'), v, imperial);
+      if (!isNaN(v)) el.innerHTML = fmt(el.getAttribute('data-k'), v, imp, el.hasAttribute('data-b'));
+    }
+    var labels = document.querySelectorAll('.ul[data-k]');
+    for (var j = 0; j < labels.length; j++) {
+      var l = LABELS[labels[j].getAttribute('data-k')];
+      if (l) labels[j].textContent = l[imp ? 1 : 0];
     }
     var btns = document.querySelectorAll('[data-units]');
-    for (var j = 0; j < btns.length; j++) btns[j].setAttribute('aria-pressed', btns[j].getAttribute('data-units') === units ? 'true' : 'false');
+    for (var k = 0; k < btns.length; k++) btns[k].setAttribute('aria-pressed', btns[k].getAttribute('data-units') === units ? 'true' : 'false');
+  }
+  function showElev(tab) {
+    var scope = tab.closest('.bx') || document, which = tab.getAttribute('data-elev');
+    var tabs = scope.querySelectorAll('.tabs [data-elev]'), panes = scope.querySelectorAll('.elev[data-elev]');
+    for (var i = 0; i < tabs.length; i++) tabs[i].setAttribute('aria-selected', tabs[i] === tab ? 'true' : 'false');
+    for (var j = 0; j < panes.length; j++) panes[j].classList.toggle('on', panes[j].getAttribute('data-elev') === which);
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-units]');
-    if (!b) return;
-    var units = b.getAttribute('data-units');
-    store(false, units);
-    apply(units);
+    if (b) { store(false, b.getAttribute('data-units')); apply(b.getAttribute('data-units')); return; }
+    var tab = e.target.closest('.tabs [data-elev]');
+    if (tab) showElev(tab);
   });
-  var saved = store(true);
-  if (saved === 'imperial') apply('imperial');
+  if (store(true) === 'imperial') apply('imperial');
 
   // relative "updated" time
   var times = document.querySelectorAll('time[data-ago]');
-  for (var k = 0; k < times.length; k++) {
-    var when = new Date(times[k].getAttribute('datetime'));
+  for (var m = 0; m < times.length; m++) {
+    var when = new Date(times[m].getAttribute('datetime'));
     if (isNaN(when)) continue;
     var mins = Math.round((Date.now() - when.getTime()) / 60000);
     var rel = mins < 2 ? 'just now' : mins < 90 ? mins + ' min ago' : Math.round(mins / 60) + ' hours ago';
-    times[k].title = times[k].textContent;
-    times[k].textContent = rel + ' · ' + times[k].textContent;
+    times[m].title = times[m].textContent;
+    times[m].textContent = times[m].textContent + ' (' + rel + ')';
   }
 })();

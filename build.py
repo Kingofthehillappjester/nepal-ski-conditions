@@ -38,15 +38,17 @@ SITE_NAME = "Nepal Ski Conditions"
 UTM = "utm_source=nepalskiing&utm_medium=sponsored&utm_campaign=conditions"
 
 DAILY_VARS = "weather_code,temperature_2m_max,temperature_2m_min,snowfall_sum,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset"
-HOURLY_VARS = "temperature_2m,snowfall,precipitation,freezing_level_height,wind_speed_10m,wind_gusts_10m,cloud_cover,weather_code,wind_speed_500hPa,wind_speed_400hPa"
+HOURLY_VARS = ("temperature_2m,apparent_temperature,snowfall,rain,precipitation,freezing_level_height,wind_speed_10m,wind_direction_10m,"
+               "wind_gusts_10m,cloud_cover,weather_code,wind_speed_500hPa,wind_direction_500hPa,wind_speed_400hPa,wind_direction_400hPa")
 CURRENT_VARS = "temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,snowfall,freezing_level_height,cloud_cover,is_day"
 
-# Outlook categories. Colours validated for the dark surface (dataviz validator, all pairs).
+# Outlook categories. The three active states pass the dataviz validator on white (all pairs);
+# "settled" is a deliberate neutral and is drawn hollow on the map, always with a text label.
 OUTLOOK = {
-    "fresh": ("Fresh snow", "#338ced"),
-    "coming": ("Snow on the way", "#e24d8b"),
-    "wind": ("Strong winds up high", "#d28e05"),
-    "settled": ("Settled", "#8a97ab"),
+    "fresh": ("Fresh snow", "#257de0"),
+    "coming": ("Snow on the way", "#d03d7d"),
+    "wind": ("Strong winds up high", "#b97a00"),
+    "settled": ("Settled", "#7b8698"),
 }
 
 # ---------------------------------------------------------------- data fetch
@@ -100,6 +102,11 @@ def nmean(vals):
 def esc(s):
     return html.escape(str(s), quote=True)
 
+
+def nmin(vals):
+    vals = [v for v in vals if v is not None]
+    return min(vals) if vals else None
+
 WMO = {
     0: ("Clear", "clear"), 1: ("Mostly clear", "clear"), 2: ("Partly cloudy", "partly"), 3: ("Overcast", "cloud"),
     45: ("Fog", "fog"), 48: ("Freezing fog", "fog"),
@@ -117,41 +124,161 @@ def wmo(code, is_day=True):
         icon = "moon"
     return label, icon
 
+# Filled, coloured weather icons in the style of classic forecast tables.
+_CLOUD = '<path d="M6.5 {y}h12a4 4 0 0 0 .4-8 6 6 0 0 0-11.6 1.6A3.3 3.3 0 0 0 6.5 {y}z" fill="{f}" stroke="{s}" stroke-width="1"/>'
 ICON_PATHS = {
-    "clear": '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>',
-    "moon": '<path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>',
-    "partly": '<path d="M8.5 5.2V3.5M3.8 9.5H2.2M4.8 5.8 3.7 4.7M13.2 5.8l1.1-1.1"/><path d="M5.6 11.3a3.4 3.4 0 1 1 6.2-2.6"/><path d="M8 19.5h10a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.2A2.9 2.9 0 0 0 8 19.5z"/>',
-    "cloud": '<path d="M7 19h11a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 19z"/>',
-    "fog": '<path d="M7 13h11a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5"/><path d="M4 16.5h16M6 20h12"/>',
-    "rain": '<path d="M7 15h11a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 15z"/><path d="M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/>',
-    "snow": '<path d="M7 14h11a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 14z"/><path d="M8.5 17.5v4M6.8 18.5l3.4 2M6.8 20.5l3.4-2M15.5 17.5v4M13.8 18.5l3.4 2M13.8 20.5l3.4-2"/>',
-    "storm": '<path d="M7 14h11a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 14z"/><path d="M12.5 15.5 10 19.5h3l-2 3.5"/>',
+    "clear": ('<g stroke="#f2a900" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M5.3 18.7 7 17M17 7l1.7-1.7"/></g>'
+              '<circle cx="12" cy="12" r="4.8" fill="#ffc21a" stroke="#e09a00" stroke-width="1"/>'),
+    "moon": '<path d="M18.5 15.2A7.6 7.6 0 0 1 9.3 4.4a8 8 0 1 0 9.2 10.8z" fill="#f4e6a6" stroke="#c4aa4c" stroke-width="1"/>',
+    "partly": ('<g stroke="#f2a900" stroke-width="1.8" stroke-linecap="round"><path d="M9 1.8v1.7M1.8 9h1.7M3.9 3.9 5 5M14.1 3.9 13 5"/></g>'
+               '<circle cx="9" cy="9" r="4" fill="#ffc21a" stroke="#e09a00" stroke-width="1"/>'
+               '<path d="M8 20.5h10.5a3.6 3.6 0 0 0 .3-7.2 5 5 0 0 0-9.6 1.4A2.9 2.9 0 0 0 8 20.5z" fill="#e6eaef" stroke="#8792a1" stroke-width="1"/>'),
+    "cloud": _CLOUD.format(y=19, f="#cdd4dd", s="#7a8697"),
+    "fog": _CLOUD.format(y=13, f="#dfe3e9", s="#8792a1") + '<path d="M4 16.5h16M6 20h12" stroke="#8792a1" stroke-width="1.8" stroke-linecap="round"/>',
+    "rain": _CLOUD.format(y=14, f="#b8c1cd", s="#6c7889") + '<path d="M8.5 16.8 7.5 19.5M12.5 16.8l-1 2.7M16.5 16.8l-1 2.7" stroke="#1f6fd1" stroke-width="1.8" stroke-linecap="round"/>',
+    "snow": _CLOUD.format(y=14, f="#c3cbd6", s="#6c7889") + '<g fill="#1f6fd1"><circle cx="8" cy="17.6" r="1.4"/><circle cx="12" cy="17.6" r="1.4"/><circle cx="16" cy="17.6" r="1.4"/><circle cx="10" cy="21" r="1.4"/><circle cx="14" cy="21" r="1.4"/></g>',
+    "storm": _CLOUD.format(y=14, f="#98a3b1", s="#5c6878") + '<path d="M12.8 15 10.3 19h3l-2 4" fill="none" stroke="#f2a900" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>',
 }
 
-def icon(name, cls="wx", title=None):
+def icon(name, cls="wi", title=None):
     t_ = f"<title>{esc(title)}</title>" if title else ""
-    return (f'<svg class="{cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
-            f'stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="{esc(title or name)}">{t_}{ICON_PATHS[name]}</svg>')
+    return (f'<svg class="{cls}" viewBox="0 0 24 24" role="img" aria-label="{esc(title or name)}">{t_}{ICON_PATHS[name]}</svg>')
 
 # Unit-aware number. JS swaps between metric and imperial; metric is rendered server-side.
-def u(kind, v, dp=0):
+# bare=True drops the unit suffix (used in tables, where the row label carries the unit).
+UNIT_LABEL = {"t": "°C", "s": "cm", "e": "m", "w": "km/h"}
+
+def u(kind, v, bare=False):
     if v is None:
         return '<span class="na">–</span>'
     if kind == "t":
-        txt = f"{round(v):d}°" if dp == 0 else f"{v:.1f}°"
-        txt = txt.replace("-", "−")
+        txt = f"{round(v):d}".replace("-", "−") + ("" if bare else "°")
     elif kind == "s":
-        txt = f"{v:.0f}" if v >= 10 or dp == 0 and v.is_integer() else f"{v:.1f}"
-        txt += "<small>cm</small>"
+        txt = f"{v:.0f}" if v >= 10 or float(v).is_integer() else f"{v:.1f}"
+        txt += "" if bare else "<small>cm</small>"
     elif kind == "e":
-        txt = f"{v:,.0f}<small>m</small>"
+        txt = f"{v:.0f}" if bare else f"{v:,.0f}<small>m</small>"
     elif kind == "w":
-        txt = f"{v:.0f}<small>km/h</small>"
+        txt = f"{v:.0f}" + ("" if bare else "<small>km/h</small>")
     else:
         txt = str(v)
-    return f'<span class="u" data-k="{kind}" data-v="{v}">{txt}</span>'
+    b = ' data-b="1"' if bare else ""
+    return f'<span class="u" data-k="{kind}" data-v="{v}"{b}>{txt}</span>'
+
+def ul(kind):
+    return f'<span class="ul" data-k="{kind}">{UNIT_LABEL[kind]}</span>'
+
+COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+ARROWS = ["↓", "↙", "←", "↖", "↑", "↗", "→", "↘"]  # indexed by where the wind comes FROM; arrow shows where it blows
+
+def wind_dir(deg):
+    if deg is None:
+        return "", ""
+    k = int((deg % 360) / 45 + 0.5) % 8
+    return ARROWS[k], COMPASS[k]
+
+# Cell colours. Snow: one-hue blue ramp. Temperature: blue/red diverging around 0°C with a grey
+# midpoint. Wind: one-hue orange ramp from 40 km/h. Text colour is picked for contrast.
+SNOW_STEPS = ((1, "#cce3fd"), (3, "#9dc8f7"), (6, "#6aabf1"), (10, "#338ced"), (20, "#2370cd"), (math.inf, "#0f4a96"))
+TEMP_STEPS = ((-25, "#0f4a96"), (-15, "#2370cd"), (-7, "#6aabf1"), (-2, "#b6d5f8"), (2, "#efefef"),
+              (7, "#fbd0cf"), (15, "#f5a3a2"), (25, "#ee7172"), (math.inf, "#d63b3c"))
+WIND_STEPS = ((40, None), (60, "#fde0c8"), (80, "#f9b98d"), (math.inf, "#f47230"))
+
+def _step(v, steps):
+    if v is None:
+        return None
+    for lim, c in steps:
+        if v < lim:
+            return c
+    return None
+
+def snow_bg(v):
+    return None if v is None or v < 0.05 else _step(v, SNOW_STEPS)
+
+def temp_bg(v):
+    return _step(v, TEMP_STEPS)
+
+def wind_bg(v):
+    return _step(v, WIND_STEPS)
+
+def _lum(c):
+    r, g, b = (int(c[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    f = lambda x: x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+
+def ink(bg):
+    lum = _lum(bg)
+    return "#ffffff" if 1.05 / (lum + 0.05) >= (lum + 0.05) / 0.05 else "#111111"
+
+def td(content, bg=None, cls="", title=None):
+    st = f' style="background:{bg};color:{ink(bg)}"' if bg else ""
+    c = f' class="{cls}"' if cls else ""
+    tt = f' title="{esc(title)}"' if title else ""
+    return f"<td{c}{st}{tt}>{content}</td>"
 
 # ---------------------------------------------------------------- analysis
+
+def col(hh, key):
+    v = hh.get(key)
+    return v if v is not None else [None] * len(hh["time"])
+
+def snow_stats(hh, dd, htimes, dates, ti, now, season_start, history, slug, key):
+    def hsum(start, end):
+        return nsum(v for tt, v in zip(htimes, hh["snowfall"]) if start < tt <= end)
+    hr = dt.timedelta(hours=1)
+    s = {"past24": hsum(now - 24 * hr, now), "past72": hsum(now - 72 * hr, now),
+         "past7": nsum(dd["snowfall_sum"][ti - 7:ti]), "past30": nsum(dd["snowfall_sum"][ti - 30:ti]),
+         "next24": hsum(now, now + 24 * hr), "next72": hsum(now, now + 72 * hr), "next7": hsum(now, now + 168 * hr)}
+    # season total: model days in the 92-day window, plus stored daily history for older days
+    first = dates[0]
+    season = nsum(v for d, v in zip(dates[:ti], dd["snowfall_sum"][:ti]) if d >= season_start)
+    season_from = max(first, season_start)
+    if first > season_start:
+        older = [h for d, h in history.items() if season_start <= d < first]
+        season = round(season + sum(h.get(slug, {}).get(key, 0) or 0 for h in older), 1)
+        dated = sorted(d for d, h in history.items() if season_start <= d < first and slug in h)
+        season_from = dated[0] if dated else first
+    s["season"], s["season_from"] = season, season_from.isoformat()
+    return s
+
+def make_periods(hh, htimes, now, lvl, count=18):
+    """AM (06-12), PM (12-18) and night (18-06) blocks from the current one onwards."""
+    T, ap, sn, rn = col(hh, "temperature_2m"), col(hh, "apparent_temperature"), col(hh, "snowfall"), col(hh, "rain")
+    ws, wd, gu = col(hh, "wind_speed_10m"), col(hh, "wind_direction_10m"), col(hh, "wind_gusts_10m")
+    fl, cc, wc = col(hh, "freezing_level_height"), col(hh, "cloud_cover"), col(hh, "weather_code")
+    sw, sd = col(hh, f"wind_speed_{lvl}hPa"), col(hh, f"wind_direction_{lvl}hPa")
+
+    def at_max(speeds, dirs, idx):
+        best = None
+        for j in idx:
+            if speeds[j] is not None and (best is None or speeds[j] > speeds[best]):
+                best = j
+        return (r1(speeds[best]), dirs[best]) if best is not None else (None, None)
+
+    out = []
+    for di in range(-1, 9):
+        d = now.date() + dt.timedelta(days=di)
+        midnight = dt.datetime.combine(d, dt.time())
+        for name, h0, h1 in (("AM", 6, 12), ("PM", 12, 18), ("Night", 18, 30)):
+            start, end = midnight + dt.timedelta(hours=h0), midnight + dt.timedelta(hours=h1)
+            if end <= now:
+                continue
+            idx = [j for j, tt in enumerate(htimes) if start <= tt < end]
+            if len(idx) < h1 - h0 - 1:
+                continue
+            codes = [wc[j] for j in idx if wc[j] is not None]
+            wind, wdir = at_max(ws, wd, idx)
+            summit, sdir = at_max(sw, sd, idx)
+            out.append({"day": d.isoformat(), "name": name, "code": max(codes) if codes else None,
+                        "snow": nsum(sn[j] for j in idx), "rain": nsum(rn[j] for j in idx),
+                        "tmax": r1(nmax(T[j] for j in idx)), "tmin": r1(nmin(T[j] for j in idx)),
+                        "feels": r1(nmin(ap[j] for j in idx)),
+                        "wind": wind, "wdir": wdir, "gust": r1(nmax(gu[j] for j in idx)),
+                        "summit": summit, "sdir": sdir,
+                        "freezing": r1(nmean(fl[j] for j in idx)), "cloud": r1(nmean(cc[j] for j in idx))})
+            if len(out) == count:
+                return out
+    return out
 
 def summarise(raw):
     now_s = raw["hourly"][0]["current"]["time"]
@@ -161,41 +288,20 @@ def summarise(raw):
     history = load_history()
     zones = []
     for i, z in enumerate(ZONES):
-        bd, td = raw["daily"][2 * i]["daily"], raw["daily"][2 * i + 1]["daily"]
+        bd, td_ = raw["daily"][2 * i]["daily"], raw["daily"][2 * i + 1]["daily"]
         bh, th = raw["hourly"][2 * i], raw["hourly"][2 * i + 1]
         hb, ht = bh["hourly"], th["hourly"]
         htimes = [t(x) for x in hb["time"]]
         dates = [dt.date.fromisoformat(x) for x in bd["time"]]
         ti = dates.index(today)
 
-        def hsum(arr, start, end):
-            return nsum(v for tt, v in zip(htimes, arr) if start < tt <= end)
-
-        past24 = hsum(hb["snowfall"], now - dt.timedelta(hours=24), now)
-        past72 = hsum(hb["snowfall"], now - dt.timedelta(hours=72), now)
-        next24 = hsum(hb["snowfall"], now, now + dt.timedelta(hours=24))
-        next72 = hsum(hb["snowfall"], now, now + dt.timedelta(hours=72))
-        next7 = hsum(hb["snowfall"], now, now + dt.timedelta(days=7))
-        top_next7 = hsum(ht["snowfall"], now, now + dt.timedelta(days=7))
-        past7 = nsum(bd["snowfall_sum"][ti - 7:ti])
-        past30 = nsum(bd["snowfall_sum"][ti - 30:ti])
-        top_past7 = nsum(td["snowfall_sum"][ti - 7:ti])
-
-        # season total: model days in window + stored history for older days
-        first = dates[0]
-        season = nsum(v for d, v in zip(dates[:ti], bd["snowfall_sum"][:ti]) if d >= season_start)
-        season_from = max(first, season_start)
-        if first > season_start:
-            older = [h for d, h in history.items() if season_start <= d < first]
-            season = round(season + sum(h.get(z["slug"], {}).get("base_snow", 0) or 0 for h in older), 1)
-            dated = sorted(d for d, h in history.items() if season_start <= d < first and z["slug"] in h)
-            season_from = dated[0] if dated else first
+        snow = snow_stats(hb, bd, htimes, dates, ti, now, season_start, history, z["slug"], "base_snow")
+        snow_top = snow_stats(ht, td_, htimes, dates, ti, now, season_start, history, z["slug"], "top_snow")
 
         # summit wind from the pressure level nearest the summit (500 hPa ~ 5,600m, 400 hPa ~ 7,200m)
         lvl = "400" if abs(z["top"]["elev"] - 7200) < abs(z["top"]["elev"] - 5600) else "500"
-        summit = hb[f"wind_speed_{lvl}hPa"]
+        summit, sdir = col(ht, f"wind_speed_{lvl}hPa"), col(ht, f"wind_direction_{lvl}hPa")
         ni = min(range(len(htimes)), key=lambda k: abs((htimes[k] - now).total_seconds()))
-        summit_now = summit[ni]
         summit_48 = nmax(v for tt, v in zip(htimes, summit) if now < tt <= now + dt.timedelta(hours=48))
 
         cur_b, cur_t = bh["current"], th["current"]
@@ -209,38 +315,28 @@ def summarise(raw):
                 "date": d.isoformat(),
                 "code": bd["weather_code"][k],
                 "base_max": r1(bd["temperature_2m_max"][k]), "base_min": r1(bd["temperature_2m_min"][k]),
-                "top_max": r1(td["temperature_2m_max"][k]), "top_min": r1(td["temperature_2m_min"][k]),
-                "snow": r1(bd["snowfall_sum"][k]), "top_snow": r1(td["snowfall_sum"][k]),
+                "top_max": r1(td_["temperature_2m_max"][k]), "top_min": r1(td_["temperature_2m_min"][k]),
+                "snow": r1(bd["snowfall_sum"][k]), "top_snow": r1(td_["snowfall_sum"][k]),
                 "gust": r1(bd["wind_gusts_10m_max"][k]),
                 "freezing": r1(nmean(hb["freezing_level_height"][j] for j in hrs)) if hrs else None,
                 "cloud_day": r1(nmean(hb["cloud_cover"][j] for j in day_hrs)) if day_hrs else None,
                 "summit_wind": r1(nmax(summit[j] for j in hrs)) if hrs else None,
             })
-        past = [{"date": dates[k].isoformat(), "snow": r1(bd["snowfall_sum"][k]), "top_snow": r1(td["snowfall_sum"][k]),
+        past = [{"date": dates[k].isoformat(), "snow": r1(bd["snowfall_sum"][k]), "top_snow": r1(td_["snowfall_sum"][k]),
                  "base_max": r1(bd["temperature_2m_max"][k]), "base_min": r1(bd["temperature_2m_min"][k]),
-                 "top_max": r1(td["temperature_2m_max"][k]), "top_min": r1(td["temperature_2m_min"][k])}
+                 "top_max": r1(td_["temperature_2m_max"][k]), "top_min": r1(td_["temperature_2m_min"][k])}
                 for k in range(ti - 14, ti)]
 
-        # next 72 hours, every 3 hours
-        hours = []
-        for j, tt in enumerate(htimes):
-            if now <= tt <= now + dt.timedelta(hours=72) and tt.hour % 3 == 0:
-                hours.append({"time": tt.isoformat(timespec="minutes"), "code": hb["weather_code"][j],
-                              "base_t": r1(hb["temperature_2m"][j]), "top_t": r1(ht["temperature_2m"][j]),
-                              "snow": round(sum((hb["snowfall"][m] or 0) for m in range(max(0, j - 2), j + 1)), 1),
-                              "gust": r1(hb["wind_gusts_10m"][j]), "freezing": r1(hb["freezing_level_height"][j]),
-                              "summit_wind": r1(summit[j]), "is_day": 1 if 6 <= tt.hour <= 17 else 0})
-
         # outlook
-        if (cur_b.get("snowfall") or 0) > 0.05 or past72 >= 10 or past24 >= 5:
+        snowing_now = (cur_b.get("snowfall") or 0) > 0.05
+        if snowing_now or snow["past72"] >= 10 or snow["past24"] >= 5:
             outlook = "fresh"
-        elif next72 >= 10:
+        elif snow["next72"] >= 10:
             outlook = "coming"
         elif (summit_48 or 0) >= 70:
             outlook = "wind"
         else:
             outlook = "settled"
-        snowing_now = (cur_b.get("snowfall") or 0) > 0.05
 
         # best-looking day in the next 7: light wind, clear sky, not snowing
         best = None
@@ -255,22 +351,25 @@ def summarise(raw):
             fd = best[1]
             best_day = {"date": fd["date"], "gust": fd["gust"], "cloud": fd["cloud_day"], "snow": fd["snow"]}
 
+        sunrise, sunset = (bd.get("sunrise") or [None] * len(dates))[ti], (bd.get("sunset") or [None] * len(dates))[ti]
         zones.append({
             **{k: z[k] for k in ("slug", "name", "region", "lat", "lon", "base", "top", "season", "about", "level", "trip", "guide")},
             "now": {"time": now_s, "base_t": r1(cur_b["temperature_2m"]), "top_t": r1(cur_t["temperature_2m"]),
                     "code": cur_b["weather_code"], "is_day": cur_b.get("is_day", 1), "gust": r1(cur_b["wind_gusts_10m"]),
-                    "wind": r1(cur_b["wind_speed_10m"]), "freezing": r1(cur_b["freezing_level_height"]),
-                    "cloud": cur_b.get("cloud_cover"), "summit_wind": r1(summit_now), "summit_level": lvl},
-            "snow": {"past24": past24, "past72": past72, "past7": past7, "past30": past30, "next24": next24,
-                     "next72": next72, "next7": next7, "season": season, "season_from": season_from.isoformat(),
-                     "top_past7": top_past7, "top_next7": top_next7},
+                    "wind": r1(cur_b["wind_speed_10m"]), "wind_dir": col(hb, "wind_direction_10m")[ni],
+                    "feels_top": r1(col(ht, "apparent_temperature")[ni]),
+                    "freezing": r1(cur_b["freezing_level_height"]), "cloud": cur_b.get("cloud_cover"),
+                    "summit_wind": r1(summit[ni]), "summit_dir": sdir[ni], "summit_level": lvl,
+                    "sunrise": sunrise[-5:] if sunrise else None, "sunset": sunset[-5:] if sunset else None},
+            "snow": snow, "snow_top": snow_top,
             "outlook": outlook, "snowing_now": snowing_now, "summit_48": r1(summit_48),
             "tonight_top_min": fdays[0]["top_min"] if fdays else None,
-            "best_day": best_day, "days": fdays, "past": past, "hours": hours,
+            "best_day": best_day, "days": fdays, "past": past,
+            "periods": {"base": make_periods(hb, htimes, now, lvl), "top": make_periods(ht, htimes, now, lvl)},
             "yesterday": {"date": dates[ti - 1].isoformat(), "base_snow": r1(bd["snowfall_sum"][ti - 1]),
-                          "top_snow": r1(td["snowfall_sum"][ti - 1]),
+                          "top_snow": r1(td_["snowfall_sum"][ti - 1]),
                           "base_min": r1(bd["temperature_2m_min"][ti - 1]), "base_max": r1(bd["temperature_2m_max"][ti - 1]),
-                          "top_min": r1(td["temperature_2m_min"][ti - 1]), "top_max": r1(td["temperature_2m_max"][ti - 1])},
+                          "top_min": r1(td_["temperature_2m_min"][ti - 1]), "top_max": r1(td_["temperature_2m_max"][ti - 1])},
         })
     return {"updated": now_s, "updated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="minutes"),
             "zones": zones, "season_start": season_start.isoformat()}
@@ -377,85 +476,11 @@ def snow_svg(z, f, every, cls):
     return svg(f, body, f"Daily new snow at {z['base']['name']}, last 14 days and next 10", cls)
 
 def chart_snow(z):
-    wide = snow_svg(z, Frame(1100, 250, pl=44), 2, "wide")
+    wide = snow_svg(z, Frame(600, 230, pl=36, pr=8), 3, "wide")
     narrow = snow_svg(z, Frame(360, 230, pl=34, pr=8), 6, "narrow")
     legend = ('<figcaption class="legend"><span><i class="sw bar"></i>Last 14 days</span>'
               '<span><i class="sw bar fc"></i>Forecast</span></figcaption>')
     return f'<figure class="chart">{wide}{narrow}{legend}</figure>'
-
-def line_chart(series, labels, lo, hi, nt, fmt, refs, label, tips, unit):
-    f = Frame(360, 220, pl=42, pr=10, pt=22)
-    n = len(labels)
-    cw = f.iw / n
-    body = y_grid(f, lo, hi, nt, fmt)
-    for ref_v, ref_label in refs:
-        if lo <= ref_v <= hi:
-            y = f.y(ref_v, lo, hi)
-            body += (f'<line class="ref" x1="{f.pl}" x2="{f.w - f.pr}" y1="{y:.1f}" y2="{y:.1f}"/>'
-                     f'<text class="ax ref-l" x="{f.w - f.pr - 2}" y="{y - 5:.1f}" text-anchor="end">{esc(ref_label)}</text>')
-    legend = '<figcaption class="legend">'
-    for s_ in series:
-        pts = [(f.pl + cw * (i + 0.5), f.y(v, lo, hi)) for i, v in enumerate(s_["values"]) if v is not None]
-        if not pts:
-            continue
-        d = " ".join(("M" if k == 0 else "L") + f"{x:.1f},{y:.1f}" for k, (x, y) in enumerate(pts))
-        body += f'<path class="ln" d="{d}" stroke="{s_["color"]}"/>'
-        x, y = pts[0]
-        body += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="{s_["color"]}" stroke="var(--surface)" stroke-width="2"/>'
-        legend += f'<span><i class="sw" style="background:{s_["color"]}"></i>{esc(s_["name"])}</span>'
-    legend += "</figcaption>"
-    body += x_axis(f, n, labels, 2) + hover_cols(f, n, tips)
-    body += f'<text class="ax unit" x="{f.pl - 7}" y="{f.pt - 9}" text-anchor="end">{unit}</text>'
-    return f'<figure class="chart">{svg(f, body, label)}{legend if len(series) > 1 else ""}</figure>'
-
-def chart_temps(z):
-    days = z["days"]
-    labels = [dt.date.fromisoformat(d["date"]).strftime("%a") for d in days]
-    vals = [v for d in days for v in (d["base_max"], d["top_min"]) if v is not None] + [0]
-    lo, hi, nt, _ = nice_scale(min(vals), max(vals), 4)
-    series = [{"name": f"Daytime high, {z['base']['name']}", "color": "#e76624", "values": [d["base_max"] for d in days]},
-              {"name": f"Overnight low, {z['top']['name']}", "color": "#00a888", "values": [d["top_min"] for d in days]}]
-    tips = [f'{dt.date.fromisoformat(d["date"]).strftime("%a %-d %b")}: {z["base"]["name"]} {d["base_min"]:.0f} to {d["base_max"]:.0f}°C; '
-            f'{z["top"]["name"]} {d["top_min"]:.0f} to {d["top_max"]:.0f}°C' for d in days]
-    return line_chart(series, labels, lo, hi, nt, lambda v: f"{v:.0f}°".replace("-", "−"), [(0, "0°C")],
-                      f"Daily temperatures at {z['base']['name']} and {z['top']['name']}, next 10 days", tips, "°C")
-
-def chart_freezing(z):
-    days = z["days"]
-    labels = [dt.date.fromisoformat(d["date"]).strftime("%a") for d in days]
-    vals = [d["freezing"] for d in days if d["freezing"] is not None] + [z["base"]["elev"], z["top"]["elev"]]
-    lo, hi, nt, _ = nice_scale(min(vals) - 200, max(vals) + 200, 4)
-    series = [{"name": "Freezing level", "color": "#cfe3ff", "values": [d["freezing"] for d in days]}]
-    tips = [f'{dt.date.fromisoformat(d["date"]).strftime("%a %-d %b")}: freezing level about {d["freezing"]:,.0f} m' if d["freezing"] else "" for d in days]
-    refs = [(z["base"]["elev"], f'{z["base"]["name"]}'), (z["top"]["elev"], f'{z["top"]["name"]}')]
-    return line_chart(series, labels, lo, hi, nt, lambda v: f"{v / 1000:.1f}k", refs,
-                      "Average daily freezing level, next 10 days", tips, "m")
-
-def chart_wind(z):
-    days = z["days"]
-    labels = [dt.date.fromisoformat(d["date"]).strftime("%a") for d in days]
-    vals = [d["summit_wind"] for d in days if d["summit_wind"] is not None] or [50]
-    lo, hi, nt, _ = nice_scale(0, max(vals), 4)
-    level = z["now"]["summit_level"]
-    series = [{"name": f"Wind at {level} hPa", "color": "#d28e05", "values": [d["summit_wind"] for d in days]}]
-    tips = [f'{dt.date.fromisoformat(d["date"]).strftime("%a %-d %b")}: up to {d["summit_wind"]:.0f} km/h near summit height' if d["summit_wind"] is not None else "" for d in days]
-    return line_chart(series, labels, lo, hi, nt, lambda v: f"{v:.0f}", [],
-                      "Maximum daily wind near summit height, next 10 days", tips, "km/h")
-
-def sparkline(z):
-    rows = z["past"][-7:] + z["days"][:7]
-    vals = [r["snow"] or 0 for r in rows]
-    hi = max(5, max(vals))
-    w, h, n = 300, 34, len(rows)
-    cw = w / n
-    out = []
-    for i, v in enumerate(vals):
-        bh = max(1.5, h * v / hi) if v > 0 else 1.5
-        cls = "sp" if i < 7 else "sp fc"
-        out.append(f'<rect class="{cls}{" zero" if v <= 0 else ""}" x="{i * cw + 1:.1f}" y="{h - bh:.1f}" width="{cw - 2:.1f}" height="{bh:.1f}" rx="1.5"/>')
-    out.append(f'<line class="sp-split" x1="{7 * cw:.1f}" x2="{7 * cw:.1f}" y1="0" y2="{h}"/>')
-    return (f'<svg class="spark" viewBox="0 0 {w} {h}" role="img" aria-label="New snow, last 7 days and next 7">'
-            + "".join(out) + "</svg>")
 
 # ---------------------------------------------------------------- map
 
@@ -490,8 +515,7 @@ def map_svg(zones, rel):
             dx, dy, anchor = labels.get(z["slug"], (12, 4, "start"))
             out.append(
                 f'<a href="{rel}{z["slug"]}/" class="mk"><title>{esc(z["name"])}: {label}</title>'
-                f'<circle cx="{x:.1f}" cy="{y:.1f}" r="11" fill="{colour}" opacity=".22"/>'
-                f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5.5" fill="{colour}" stroke="var(--surface)" stroke-width="2"/>'
+                f'<circle cx="{x:.1f}" cy="{y:.1f}" r="6.5" fill="{"#ffffff" if z["outlook"] == "settled" else colour}" stroke="{colour}" stroke-width="2.5"/>'
                 f'<text x="{x + dx:.1f}" y="{y + dy:.1f}" text-anchor="{anchor}">{esc(z["name"])}</text></a>')
         return "".join(out)
     cities = [("Kathmandu", 85.324, 27.717, -6, -6, "end"), ("Pokhara", 83.986, 28.209, 8, 4, "start")]
@@ -507,10 +531,15 @@ def map_svg(zones, rel):
 
 # ---------------------------------------------------------------- page parts
 
-def page(title, desc, path, body, rel, schema=None):
+LOGO = ('<svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="3" fill="#ffffff"/>'
+        '<path d="M3 33 15 13l6 9 4-5 12 16z" fill="#2c5d93"/><path d="M12.2 17.6 15 13l3 4.6-1.5 1.2-1.4-1.1z" fill="#ffffff"/></svg>')
+
+def page(title, desc, path, body, rel, schema=None, current=""):
     url = f"{SITE_URL}/{path}"
     robots = "index,follow,max-image-preview:large" if ALLOW_INDEXING else "noindex,follow"
     ld = f'<script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>' if schema else ""
+    nav = [("", "Home")] + [(f'{z["slug"]}/', z["name"]) for z in ZONES] + [("about/", "How it works")]
+    links = "".join(f'<a href="{rel}{p}"{" class=on aria-current=page" if p == current else ""}>{esc(n)}</a>' for p, n in nav)
     return f"""<!DOCTYPE html>
 <html lang="en-GB">
 <head>
@@ -520,7 +549,7 @@ def page(title, desc, path, body, rel, schema=None):
 <meta name="description" content="{esc(desc)}">
 <meta name="robots" content="{robots}">
 <link rel="canonical" href="{esc(url)}">
-<meta name="theme-color" content="#0b1220">
+<meta name="theme-color" content="#1b3d6d">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{SITE_NAME}">
 <meta property="og:title" content="{esc(title)}">
@@ -528,59 +557,55 @@ def page(title, desc, path, body, rel, schema=None):
 <meta property="og:url" content="{esc(url)}">
 <meta name="twitter:card" content="summary">
 <link rel="icon" href="{rel}assets/favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{rel}assets/style.css">
+<script>document.documentElement.className += " js";</script>
 {ld}
 </head>
 <body>
-<header class="top">
-  <a class="brand" href="{rel}"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 25 13 9l5 8 3-4 8 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M11 12.2 13 9l2.1 3.4-1.1.9-1-.8z" fill="currentColor"/></svg><span>Nepal Ski <b>Conditions</b></span></a>
-  <nav><a href="{rel}#zones">Zones</a><a href="{rel}about/">How it works</a></nav>
-  <div class="units" role="group" aria-label="Units"><button type="button" data-units="metric" aria-pressed="true">°C</button><button type="button" data-units="imperial" aria-pressed="false">°F</button></div>
-</header>
-<main>
+<header class="hd"><div class="wrap hd-in">
+  <a class="logo" href="{rel}">{LOGO}<span><b>Nepal Ski Conditions</b><i>Snow forecasts and reports for the Nepal Himalaya</i></span></a>
+  <div class="units" role="group" aria-label="Units"><span>Units:</span><button type="button" data-units="metric" aria-pressed="true">°C · cm · m</button><button type="button" data-units="imperial" aria-pressed="false">°F · in · ft</button></div>
+</div></header>
+<nav class="nav" aria-label="Zones"><div class="wrap">{links}</div></nav>
+<main class="wrap">
 {body}
 </main>
-<footer class="foot">
-  <div class="foot-in">
-    <p class="fb"><b>Nepal Ski Conditions</b> is a free tool for skiers heading to Nepal, built and sponsored by <a href="{SPONSOR['sponsor']['url']}?{UTM}_footer" rel="sponsored noopener">King of the Hill</a>, guided ski expeditions in Nepal.</p>
-    <p>Weather data: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo.com</a> (CC BY 4.0), from national weather service models. Figures are model forecasts for the stated elevations, not observations, and are processed into daily and three-hourly summaries. Not an avalanche forecast.</p>
-    <p><a href="{rel}about/">How it works</a> · <a href="{rel}data/conditions.json">Open data (JSON)</a> · <a href="https://github.com/Kingofthehillappjester/nepal-ski-conditions" rel="noopener">Source</a></p>
-  </div>
-</footer>
+<footer class="ft"><div class="wrap">
+  <p><b>Nepal Ski Conditions</b> is a free tool for skiers heading to Nepal, built and sponsored by <a href="{SPONSOR['sponsor']['url']}?{UTM}_footer" rel="sponsored noopener">King of the Hill</a>, guided ski expeditions in Nepal.</p>
+  <p>Weather data: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo.com</a> (CC BY 4.0), from national weather service models. Figures are model forecasts for the stated elevations, not observations, and are processed into daily and six-hourly summaries. Not an avalanche forecast.</p>
+  <p><a href="{rel}about/">How it works</a> · <a href="{rel}data/conditions.json">Open data (JSON)</a> · <a href="https://github.com/Kingofthehillappjester/nepal-ski-conditions" rel="noopener">Source code</a></p>
+</div></footer>
 <script src="{rel}assets/app.js" defer></script>
 </body>
 </html>
 """
 
-def outlook_chip(z):
+def outlook(z):
     label, colour = OUTLOOK[z["outlook"]]
     if z["outlook"] == "fresh" and z["snowing_now"]:
         label = "Snowing now"
-    ic = {"fresh": "snow", "coming": "snow", "wind": "fog", "settled": "clear"}[z["outlook"]]
-    return f'<span class="chip" style="--c:{colour}">{icon(ic, "ci")}{esc(label)}</span>'
+    return f'<span class="ol {z["outlook"]}" style="--c:{colour}"><i></i>{esc(label)}</span>'
+
+def box(title, inner, cls="", tag=""):
+    t_ = f'<span class="tag">{tag}</span>' if tag else ""
+    return f'<section class="box {cls}"><h2>{title}{t_}</h2><div class="bx">{inner}</div></section>'
 
 def trip_card(trip, zone_slug=""):
     url = f'{trip["url"]}?{UTM}_{zone_slug or "home"}'
     return (f'<a class="trip" href="{esc(url)}" rel="sponsored noopener" target="_blank">'
             f'<img src="{esc(trip["image"])}" alt="" loading="lazy" decoding="async">'
-            f'<div><span class="tag">Sponsored · King of the Hill</span><b>{esc(trip["name"])}</b>'
-            f'<span class="meta">{esc(trip["meta"])}</span><p>{esc(trip["blurb"])}</p><span class="go">See the trip →</span></div></a>')
+            f'<b>{esc(trip["name"])}</b><span class="meta">{esc(trip["meta"])}</span>'
+            f'<span class="txt">{esc(trip["blurb"])}</span><span class="go">See the trip »</span></a>')
 
 def sponsored(zone=None):
     keys = [t["key"] for t in SPONSOR["trips"]]
     if zone and zone.get("trip") in TRIPS:
         keys.remove(zone["trip"])
         keys.insert(0, zone["trip"])
-    keys = keys[:3]
-    cards = "".join(trip_card(TRIPS[k], zone["slug"] if zone else "") for k in keys)
-    return f"""<section class="sec sponsored" aria-labelledby="sp-h">
-  <div class="sec-head"><p class="eyebrow">Sponsored</p><h2 id="sp-h">Ski Nepal with a guide</h2>
-  <p class="muted">These trips are run by King of the Hill, who build and pay for this site. Every trip is led by licensed Nepali guides from HST Adventures.</p></div>
-  <div class="trips">{cards}</div>
-</section>"""
+    cards = "".join(trip_card(TRIPS[k], zone["slug"] if zone else "") for k in keys[:3])
+    inner = (f'<div class="trips">{cards}</div><p class="fine">These trips are run by King of the Hill, who build and pay for this site. '
+             'Every trip is led by licensed Nepali guides from HST Adventures.</p>')
+    return box("Ski Nepal with a guide", inner, "sponsored", "Sponsored")
 
 def kit_tips(zones):
     """Packing notes driven by this week's numbers."""
@@ -604,194 +629,234 @@ def kit_tips(zones):
     tips.append(("Insulated water bottles", "Bottles freeze overnight at high camps. Use insulated covers and keep a bottle in your sleeping bag."))
     return tips[:4]
 
-def kit_section(zones):
-    items = "".join(f'<li><b>{esc(h)}</b><span>{esc(p)}</span></li>' for h, p in kit_tips(zones))
-    return f"""<section class="sec kit" aria-labelledby="kit-h">
-  <div class="sec-head"><p class="eyebrow">Gear</p><h2 id="kit-h">What to pack for this week's conditions</h2>
-  <p class="muted">Updated with the forecast. For the full list, see the <a href="{esc(SPONSOR['kit_list_url'])}?{UTM}_kit" rel="sponsored noopener">Nepal ski touring kit list</a> from King of the Hill.</p></div>
-  <ul class="kit-list">{items}</ul>
-</section>"""
-
-# ---------------------------------------------------------------- pages
-
-def zone_card(z, rel):
-    n = z["now"]
-    label, ic = wmo(n["code"], n["is_day"])
-    s = z["snow"]
-    return f"""<a class="zc" href="{rel}{z['slug']}/">
-  <div class="zc-top"><div><h3>{esc(z['name'])}</h3><p class="muted">{esc(z['region'])} · {z['top']['elev']:,}m</p></div>{outlook_chip(z)}</div>
-  <div class="zc-now">{icon(ic, 'wx big', label)}<div><span class="big-t">{u('t', n['base_t'])}</span><span class="muted sm">at {esc(z['base']['name'])} {z['base']['elev']:,}m</span></div>
-  <div class="zc-top-t"><span class="muted sm">Top</span>{u('t', n['top_t'])}</div></div>
-  <dl class="zc-stats">
-    <div><dt>Snow 24h</dt><dd>{u('s', s['past24'])}</dd></div>
-    <div><dt>Snow 7d</dt><dd>{u('s', s['past7'])}</dd></div>
-    <div><dt>Next 72h</dt><dd>{u('s', s['next72'])}</dd></div>
-    <div><dt>Freezing</dt><dd>{u('e', n['freezing'])}</dd></div>
-  </dl>
-  <div class="zc-spark">{sparkline(z)}<div class="sp-cap"><span>Snow, last 7 days</span><span>Next 7</span></div></div>
-</a>"""
+def kit_box(zones):
+    items = "".join(f"<li><b>{esc(h)}</b>{esc(p)}</li>" for h, p in kit_tips(zones))
+    inner = (f'<ul class="kit">{items}</ul><p class="fine">Updated with the forecast. Full list: '
+             f'<a href="{esc(SPONSOR["kit_list_url"])}?{UTM}_kit" rel="sponsored noopener">Nepal ski touring kit list</a> from King of the Hill.</p>')
+    return box("What to pack this week", inner, "kitbox")
 
 def fmt_time(s):
-    d = t(s)
-    return d.strftime("%-d %b, %H:%M")
+    return t(s).strftime("%-d %b %Y, %H:%M")
 
-def snow_tile(k, z, v, none_text):
-    if v < 0.5:
-        return f'<div class="tile"><span class="k">{k}</span><span class="v">Dry</span><span class="n">{none_text}</span></div>'
-    return f'<a class="tile" href="{z["slug"]}/"><span class="k">{k}</span><span class="v">{u("s", v)}</span><span class="n">{esc(z["name"])}</span></a>'
+def updated(data):
+    return f'<time datetime="{data["updated"]}:00+05:45" data-ago>{fmt_time(data["updated"])} Nepal time</time>'
+
+def snow_cell(v, cls=""):
+    return td(u("s", v, True) if v is not None and v >= 0.05 else '<span class="na">–</span>', snow_bg(v), cls)
+
+def temp_cell(v, cls=""):
+    return td(u("t", v, True), temp_bg(v), cls)
+
+# ---------------------------------------------------------------- forecast table (AM / PM / night)
+
+def forecast_table(z, which):
+    ps = z["periods"][which]
+    first = [i == 0 or ps[i]["day"] != ps[i - 1]["day"] for i in range(len(ps))]
+    D = lambda i: "d0" if first[i] else ""
+    groups = []
+    for p in ps:
+        if groups and groups[-1][0] == p["day"]:
+            groups[-1][1] += 1
+        else:
+            groups.append([p["day"], 1])
+    days = "".join(f'<th colspan="{n}" class="d0">{dt.date.fromisoformat(d).strftime("%a %-d %b" if n > 1 else "%a %-d")}</th>' for d, n in groups)
+    per = "".join(f'<td class="{D(i)}">{"night" if p["name"] == "Night" else p["name"]}</td>' for i, p in enumerate(ps))
+
+    def row(label, cells, cls=""):
+        return f'<tr class="{cls}"><th class="lab" scope="row">{label}</th>{"".join(cells)}</tr>'
+
+    def wind_cell(speed, deg, i, what):
+        if speed is None:
+            return td('<span class="na">–</span>', cls=D(i))
+        arrow, name = wind_dir(deg)
+        return td(f'<span class="arr">{arrow}</span>{u("w", speed, True)}', wind_bg(speed), D(i),
+                  f"{what}: up to {speed:.0f} km/h from the {name}" if name else None)
+
+    rows = [row("Weather", [td(icon(wmo(p["code"], p["name"] != "Night")[1], "wi", wmo(p["code"], p["name"] != "Night")[0]), cls=D(i)) for i, p in enumerate(ps)], "wx"),
+            row(f"Snow ({ul('s')})", [snow_cell(p["snow"], D(i)) for i, p in enumerate(ps)], "sn")]
+    if any((p["rain"] or 0) >= 0.5 for p in ps):
+        rows.append(row("Rain (mm)", [td(f'{p["rain"]:.0f}' if (p["rain"] or 0) >= 0.5 else '<span class="na">–</span>', cls=D(i)) for i, p in enumerate(ps)]))
+    rows += [row(f"Max temp ({ul('t')})", [temp_cell(p["tmax"], D(i)) for i, p in enumerate(ps)]),
+             row(f"Min temp ({ul('t')})", [temp_cell(p["tmin"], D(i)) for i, p in enumerate(ps)]),
+             row(f"Feels like ({ul('t')})", [temp_cell(p["feels"], D(i)) for i, p in enumerate(ps)]),
+             row(f"Wind ({ul('w')})", [wind_cell(p["wind"], p["wdir"], i, "Wind") for i, p in enumerate(ps)], "wd"),
+             row(f"Gusts ({ul('w')})", [td(u("w", p["gust"], True), wind_bg(p["gust"]), D(i)) for i, p in enumerate(ps)]),
+             row(f"Summit wind ({ul('w')})", [wind_cell(p["summit"], p["sdir"], i, "Summit wind") for i, p in enumerate(ps)], "wd"),
+             row(f"Freezing level ({ul('e')})", [td(u("e", p["freezing"], True), cls=D(i)) for i, p in enumerate(ps)]),
+             row("Cloud (%)", [td(f'{p["cloud"]:.0f}' if p["cloud"] is not None else "–", cls=D(i)) for i, p in enumerate(ps)])]
+    el = z[which]
+    cap = f'{"Top" if which == "top" else "Base"}: {esc(el["name"])} {el["elev"]:,}m'
+    return (f'<div class="elev{" on" if which == "top" else ""}" data-elev="{which}"><h3 class="elev-h">{cap}</h3>'
+            f'<div class="fc-wrap"><table class="fct"><caption class="sr">{z["name"]} forecast, {cap}</caption>'
+            f'<thead><tr class="day"><th class="lab">{cap.split(":")[0]} {el["elev"]:,}m</th>{days}</tr>'
+            f'<tr class="per"><th class="lab">Nepal time</th>{per}</tr></thead><tbody>{"".join(rows)}</tbody></table></div></div>')
+
+# ---------------------------------------------------------------- pages
 
 def render_home(data):
     zones = data["zones"]
     rel = ""
+    zl = lambda z, txt=None: f'<a href="{rel}{z["slug"]}/">{esc(txt or z["name"])}</a>'
     most7 = max(zones, key=lambda z: z["snow"]["past7"])
     coming = max(zones, key=lambda z: z["snow"]["next7"])
     coldest = min(zones, key=lambda z: z["tonight_top_min"] if z["tonight_top_min"] is not None else 99)
+    windiest = max(zones, key=lambda z: z["summit_48"] or 0)
     fls = [z["now"]["freezing"] for z in zones if z["now"]["freezing"] is not None]
-    legend = "".join(f'<span><i style="background:{c}"></i>{esc(l)}</span>' for l, c in OUTLOOK.values())
-    cards = "".join(zone_card(z, rel) for z in zones)
+    fresh = [z for z in zones if z["outlook"] == "fresh"]
+    summary = [
+        ("Most snow, last 7 days", f'{u("s", most7["snow"]["past7"])} at {zl(most7)}' if most7["snow"]["past7"] >= 0.5 else "None. No new snow in any zone."),
+        ("Most snow, next 7 days", f'{u("s", coming["snow"]["next7"])} at {zl(coming)}' if coming["snow"]["next7"] >= 0.5 else "None forecast in any zone."),
+        ("Fresh snow now", ", ".join(zl(z) for z in fresh) or "None"),
+        ("Coldest summit low today", f'{u("t", coldest["tonight_top_min"])} on {zl(coldest, coldest["top"]["name"])}'),
+        ("Strongest summit wind, next 48h", f'{u("w", windiest["summit_48"])} at {zl(windiest)}'),
+        ("Freezing level now", f'{u("e", min(fls))} to {u("e", max(fls))}' if fls else "–"),
+    ]
+    kv = "".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in summary)
+    legend = "".join(f'<span class="ol {k}" style="--c:{c}"><i></i>{esc(lbl)}</span>' for k, (lbl, c) in OUTLOOK.items())
+
+    rep_rows = "".join(
+        f'<tr><th><a href="{rel}{z["slug"]}/">{esc(z["name"])}</a><span class="rg">{esc(z["region"])}</span></th>'
+        f'<td class="l">{outlook(z)}</td><td>{u("e", z["top"]["elev"])}</td>'
+        f'{snow_cell(z["snow"]["past24"])}{snow_cell(z["snow"]["past7"])}{snow_cell(z["snow"]["next72"])}'
+        f'{temp_cell(z["now"]["base_t"])}{temp_cell(z["now"]["top_t"])}'
+        f'<td>{u("e", z["now"]["freezing"], True)}</td>{td(u("w", z["summit_48"], True), wind_bg(z["summit_48"]))}</tr>'
+        for z in zones)
+    report = (f'<div class="scroll"><table class="rep"><thead><tr><th class="l">Zone</th><th class="l">Outlook</th><th>Summit</th>'
+              f'<th>Snow 24h<br>({ul("s")})</th><th>Snow 7 days<br>({ul("s")})</th><th>Next 72h<br>({ul("s")})</th>'
+              f'<th>Camp now<br>({ul("t")})</th><th>Summit now<br>({ul("t")})</th><th>Freezing<br>level ({ul("e")})</th>'
+              f'<th>Summit wind<br>48h ({ul("w")})</th></tr></thead><tbody>{rep_rows}</tbody></table></div>'
+              '<p class="fine">Snow figures are model totals at each zone\'s camp (lower elevation). Summit wind is the strongest model wind near summit height in the next 48 hours.</p>')
+
+    wdays = [dt.date.fromisoformat(d["date"]) for d in zones[0]["days"][:7]]
+    whead = "".join(f'<th>{d.strftime("%a")}<br>{d.strftime("%-d %b")}</th>' for d in wdays)
+    wrows = "".join(
+        f'<tr><th><a href="{rel}{z["slug"]}/">{esc(z["name"])}</a></th>'
+        + "".join(td(f'{icon(wmo(d["code"])[1], "wi", wmo(d["code"])[0])}<span>{u("s", d["snow"], True) if (d["snow"] or 0) >= 0.05 else "–"}</span>', snow_bg(d["snow"]))
+                  for d in z["days"][:7])
+        + snow_cell(nsum(d["snow"] for d in z["days"][:7]), "tot") + "</tr>"
+        for z in zones)
+    week = (f'<div class="scroll"><table class="rep wk"><thead><tr><th class="l">Zone</th>{whead}<th>Total<br>({ul("s")})</th></tr></thead>'
+            f'<tbody>{wrows}</tbody></table></div><p class="fine">Daily new snow ({ul("s")}) at each zone\'s camp, with the day\'s main weather.</p>')
+
+    notes = ('<ul class="kit"><li><b>Fresh snow</b>10cm or more in the last 72 hours, 5cm in 24 hours, or snowing now.</li>'
+             '<li><b>Snow on the way</b>10cm or more forecast in the next 72 hours.</li>'
+             '<li><b>Strong winds up high</b>Summit-height winds of 70 km/h or more in the next 48 hours.</li>'
+             '<li><b>Settled</b>None of the above.</li></ul>'
+             '<p class="fine">Mountain weather in Nepal changes fast and models struggle with steep, high terrain. Use this for the big picture, not as a safety tool. Check with local guides and Nepal\'s '
+             '<a href="https://www.dhm.gov.np/" rel="noopener">Department of Hydrology and Meteorology</a> before you go.</p>')
+
     body = f"""
-<section class="hero">
-  <p class="eyebrow live"><span class="dot"></span>Updated <time datetime="{data['updated']}:00+05:45" data-ago>{fmt_time(data['updated'])} Nepal time</time></p>
-  <h1>Snow and weather for Nepal's <em>ski zones</em></h1>
-  <p class="lede">Live forecasts for {len(zones)} places you can ski in Nepal, from the beginner slope at Kalinchowk to 7,000m peaks. New snow, freezing level, summit winds and a 10-day outlook, updated every three hours.</p>
-  <div class="tiles">
-    {snow_tile("Most snow, last 7 days", most7, most7["snow"]["past7"], "No new snow in any zone")}
-    {snow_tile("Most snow, next 7 days", coming, coming["snow"]["next7"], "None forecast in any zone")}
-    <a class="tile" href="{coldest['slug']}/"><span class="k">Coldest summit low today</span><span class="v">{u('t', coldest['tonight_top_min'])}</span><span class="n">{esc(coldest['top']['name'])}</span></a>
-    <div class="tile"><span class="k">Freezing level now</span><span class="v">{u('e', min(fls))}<i>to</i>{u('e', max(fls))}</span><span class="n">across all zones</span></div>
-  </div>
-</section>
-<section class="sec map-sec" aria-labelledby="map-h">
-  <div class="map-card">
-    <div class="sec-head"><h2 id="map-h">Where the snow is</h2><p class="muted">Tap a zone for its full forecast.</p></div>
-    {map_svg(zones, rel)}
-    <div class="map-legend">{legend}</div>
-  </div>
-</section>
-<section class="sec" id="zones" aria-labelledby="z-h">
-  <div class="sec-head"><h2 id="z-h">All zones</h2><p class="muted">Temperatures now. Snow figures are model totals at each zone's lower elevation.</p></div>
-  <div class="zgrid">{cards}</div>
-</section>
-{kit_section(zones)}
+<div class="title">
+  <h1>Nepal snow report and forecast</h1>
+  <p class="upd">Updated {updated(data)}. Forecasts for {len(zones)} ski zones in Nepal, refreshed every 3 hours.</p>
+</div>
+<div class="row">
+  <div class="c7">{box("Snow map", map_svg(zones, rel) + f'<div class="legend">{legend}</div><p class="fine">Tap a zone for its full forecast.</p>')}</div>
+  <div class="c5">{box("Snow summary", f'<table class="kv">{kv}</table>')}{kit_box(zones)}</div>
+</div>
+{box("Snow report: all zones", report)}
+{box("7-day snow forecast", week)}
 {sponsored()}
-<section class="sec note"><p class="muted">Mountain weather in Nepal changes fast, and forecast models struggle with high, steep terrain. Use this as a guide to the big picture, not a safety tool. Always check conditions with local guides and Nepal's <a href="https://www.dhm.gov.np/" rel="noopener">Department of Hydrology and Meteorology</a> before you go.</p></section>
+{box("What the outlooks mean", notes)}
 """
     schema = {"@context": "https://schema.org", "@type": "WebSite", "name": SITE_NAME, "url": SITE_URL + "/",
               "description": "Live snow and weather forecasts for Nepal's ski zones.",
               "publisher": {"@type": "Organization", "name": "King of the Hill", "url": SPONSOR["sponsor"]["url"]}}
-    return page("Nepal Ski Conditions: live snow and weather for Nepal's ski zones",
-                "Live snow and weather for Nepal's ski zones: Annapurna, Thorong La, Langtang, Mera Peak, Island Peak, Himlung, Putha Hiunchuli and Kalinchowk. New snow, freezing level, summit winds and a 10-day forecast.",
-                "", body, rel, schema)
+    return page("Nepal Ski Conditions: snow report and forecast for Nepal's ski zones",
+                "Snow report and forecast for Nepal's ski zones: Annapurna, Thorong La, Langtang, Mera Peak, Island Peak, Himlung, Putha Hiunchuli and Kalinchowk. New snow, freezing level, summit winds and 6-day forecasts.",
+                "", body, rel, schema, current="")
 
 def render_zone(z, data):
     rel = "../"
-    n, s = z["now"], z["snow"]
+    n, s, st = z["now"], z["snow"], z["snow_top"]
     label, ic = wmo(n["code"], n["is_day"])
     level_h = "about 7,200m" if n["summit_level"] == "400" else "about 5,600m"
     best = ""
     if z["best_day"]:
         b = z["best_day"]
         bd = dt.date.fromisoformat(b["date"])
-        best = (f'<p class="best">{icon("clear", "ci")}<span><b>Looks best: {bd.strftime("%A %-d %b")}.</b> '
-                f'Lightest wind and clearest sky in the next week (gusts to {b["gust"]:.0f} km/h, {b["cloud"]:.0f}% cloud by day).</span></p>')
-    days = "".join(
-        f'<li><span class="d">{dt.date.fromisoformat(d["date"]).strftime("%a")}<small>{dt.date.fromisoformat(d["date"]).strftime("%-d %b")}</small></span>'
-        f'{icon(wmo(d["code"])[1], "wx", wmo(d["code"])[0])}'
-        f'<span class="hl">{u("t", d["base_max"])}<i>/</i>{u("t", d["base_min"])}</span>'
-        f'<span class="sn">{u("s", d["snow"]) if (d["snow"] or 0) > 0 else "<span class=na>–</span>"}</span>'
-        f'<span class="gw">{u("w", d["gust"])}</span></li>' for d in z["days"])
-    rows = "".join(
-        f'<tr><th scope="row">{t(h["time"]).strftime("%a %H:%M")}</th><td>{icon(wmo(h["code"], h["is_day"])[1], "wx sm", wmo(h["code"], h["is_day"])[0])}</td>'
-        f'<td>{u("t", h["base_t"])}</td><td>{u("t", h["top_t"])}</td><td>{u("s", h["snow"]) if h["snow"] > 0 else "<span class=na>–</span>"}</td>'
-        f'<td>{u("w", h["gust"])}</td><td>{u("e", h["freezing"])}</td><td>{u("w", h["summit_wind"])}</td></tr>' for h in z["hours"])
-    season_lbl = "Season so far" + ("" if s["season_from"] <= data["season_start"] else f' (since {dt.date.fromisoformat(s["season_from"]).strftime("%-d %b")})')
-    others = "".join(f'<a href="../{o["slug"]}/">{esc(o["name"])}{outlook_chip(o)}</a>' for o in data["zones"] if o["slug"] != z["slug"])
+        best = (f'<p class="best"><b>Best looking day: {bd.strftime("%A %-d %B")}.</b> Lightest wind and clearest sky in the next week '
+                f'(gusts to {b["gust"]:.0f} km/h, {b["cloud"]:.0f}% cloud by day).</p>')
+    tabs = (f'<div class="tabs" role="tablist"><button type="button" role="tab" data-elev="top" aria-selected="true">Top: {esc(z["top"]["name"])} {z["top"]["elev"]:,}m</button>'
+            f'<button type="button" role="tab" data-elev="base" aria-selected="false">Base: {esc(z["base"]["name"])} {z["base"]["elev"]:,}m</button></div>')
+    fc_note = (f'<p class="fine">AM is 06:00 to 12:00, PM 12:00 to 18:00 and night 18:00 to 06:00, Nepal time. Wind is the strongest in each period, '
+               f'and the arrow shows where it blows to. Summit wind is the model wind at {n["summit_level"]} hPa ({level_h}).</p>')
+
+    season_lbl = "Season" + ("" if s["season_from"] <= data["season_start"] else f' (since {dt.date.fromisoformat(s["season_from"]).strftime("%-d %b")})')
+    cols = [("past24", "Last 24h"), ("past72", "72h"), ("past7", "7 days"), ("past30", "30 days"), ("season", season_lbl),
+            ("next24", "Next 24h"), ("next72", "72h"), ("next7", "7 days")]
+    thead = "".join(f'<th{" class=fut" if k.startswith("next") else ""}>{lbl}</th>' for k, lbl in cols)
+    srow = lambda name, el, d: (f'<tr><th>{name}<span class="rg">{esc(el["name"])} {el["elev"]:,}m</span></th>'
+                                + "".join(snow_cell(d[k], "fut" if k.startswith("next") else "") for k, _ in cols) + "</tr>")
+    snow_tbl = (f'<div class="scroll"><table class="rep st"><thead><tr><th class="l">New snow ({ul("s")})</th>{thead}</tr></thead>'
+                f'<tbody>{srow("Base", z["base"], s)}{srow("Top", z["top"], st)}</tbody></table></div>')
+
+    arrow, cname = wind_dir(n["wind_dir"])
+    sarrow, sname = wind_dir(n["summit_dir"])
+    cur = [("Weather", f'{icon(ic, "wi sm", label)} {esc(label)}'),
+           (f'{esc(z["base"]["name"])}', u("t", n["base_t"])),
+           (f'{esc(z["top"]["name"])}', u("t", n["top_t"])),
+           ("Feels like at the top", u("t", n["feels_top"])),
+           ("Wind at the camp", f'{u("w", n["wind"])} {cname and "from the " + cname}, gusts {u("w", n["gust"])}'),
+           (f'Summit wind ({n["summit_level"]} hPa)', f'{u("w", n["summit_wind"])} {sname and "from the " + sname}'),
+           ("Freezing level", u("e", n["freezing"])),
+           ("Cloud cover", f'{n["cloud"]:.0f}%' if n["cloud"] is not None else "–"),
+           ("Sunrise / sunset", f'{n["sunrise"] or "–"} / {n["sunset"] or "–"}')]
+    cur_tbl = '<table class="kv">' + "".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in cur) + "</table>"
+    others = "".join(f'<li><a href="../{o["slug"]}/">{esc(o["name"])}</a> {outlook(o)}</li>' for o in data["zones"] if o["slug"] != z["slug"])
+    about = (f'<p>{esc(z["about"])}</p><p><b>Best season:</b> {esc(z["season"])}.</p>'
+             f'<p><a href="{esc(z["guide"][1])}?{UTM}_{z["slug"]}_guide" rel="noopener">{esc(z["guide"][0])} »</a> <span class="fine">from King of the Hill</span></p>')
     body = f"""
-<nav class="crumbs"><a href="../">All zones</a><span>/</span>{esc(z['name'])}</nav>
-<section class="zhero">
-  <div>
-    <p class="eyebrow live"><span class="dot"></span>Updated <time datetime="{data['updated']}:00+05:45" data-ago>{fmt_time(data['updated'])} Nepal time</time></p>
-    <h1>{esc(z['name'])} <em>snow and weather</em></h1>
-    <p class="lede">{esc(z['region'])} · {esc(z['base']['name'])} {z['base']['elev']:,}m · {esc(z['top']['name'])} {z['top']['elev']:,}m</p>
-    <div class="zh-chips">{outlook_chip(z)}<span class="chip plain">{esc(z['level'])}</span></div>
-    {best}
+<p class="crumbs"><a href="../">Home</a> › {esc(z['region'])} › {esc(z['name'])}</p>
+<div class="title">
+  <h1>{esc(z['name'])} snow forecast</h1>
+  <p class="sub">{esc(z['region'])}. {esc(z['base']['name'])} {z['base']['elev']:,}m to {esc(z['top']['name'])} {z['top']['elev']:,}m. {esc(z['level'])}.</p>
+  <p class="upd">Outlook: {outlook(z)} &nbsp;·&nbsp; Updated {updated(data)}</p>
+</div>
+{best}
+{box("6-day forecast", tabs + forecast_table(z, "top") + forecast_table(z, "base") + fc_note, "fcbox")}
+<div class="row">
+  <div class="c8">
+    {box("Snow history and forecast", snow_tbl + chart_snow(z))}
+    {box(f"About {esc(z['name'])}", about)}
   </div>
-  <div class="now-card">
-    <div class="now-main">{icon(ic, 'wx huge', label)}<div><span class="huge-t">{u('t', n['base_t'])}</span><span class="muted">{esc(label)} at {esc(z['base']['name'])}</span></div></div>
-    <dl class="now-grid">
-      <div><dt>{esc(z['top']['name'])}</dt><dd>{u('t', n['top_t'])}</dd></div>
-      <div><dt>Freezing level</dt><dd>{u('e', n['freezing'])}</dd></div>
-      <div><dt>Gusts at {esc(z['base']['name'])}</dt><dd>{u('w', n['gust'])}</dd></div>
-      <div><dt>Wind near summit height</dt><dd>{u('w', n['summit_wind'])}</dd></div>
-    </dl>
+  <div class="c4">
+    {box("Current conditions", cur_tbl)}
+    {kit_box([z])}
+    {box("Other zones", f'<ul class="links">{others}</ul>')}
   </div>
-</section>
-<section class="sec">
-  <div class="sec-head"><h2>New snow</h2><p class="muted">Model totals at {esc(z['base']['name'])} ({z['base']['elev']:,}m). Higher up, at {esc(z['top']['name'])}, the model has {u('s', s['top_past7'])} over the last 7 days and {u('s', s['top_next7'])} in the next 7.</p></div>
-  <dl class="snow-row">
-    <div><dt>Last 24h</dt><dd>{u('s', s['past24'])}</dd></div>
-    <div><dt>Last 72h</dt><dd>{u('s', s['past72'])}</dd></div>
-    <div><dt>Last 7 days</dt><dd>{u('s', s['past7'])}</dd></div>
-    <div><dt>Last 30 days</dt><dd>{u('s', s['past30'])}</dd></div>
-    <div><dt>{esc(season_lbl)}</dt><dd>{u('s', s['season'])}</dd></div>
-    <div class="fut"><dt>Next 24h</dt><dd>{u('s', s['next24'])}</dd></div>
-    <div class="fut"><dt>Next 72h</dt><dd>{u('s', s['next72'])}</dd></div>
-    <div class="fut"><dt>Next 7 days</dt><dd>{u('s', s['next7'])}</dd></div>
-  </dl>
-  {chart_snow(z)}
-</section>
-<section class="sec">
-  <div class="sec-head"><h2>Next 10 days</h2><p class="muted">Highs and lows at {esc(z['base']['name'])}, new snow and maximum gusts.</p></div>
-  <ol class="days">{days}</ol>
-  <div class="charts2">
-    <div><h3>Temperature</h3>{chart_temps(z)}</div>
-    <div><h3>Freezing level</h3>{chart_freezing(z)}</div>
-    <div><h3>Wind near summit height</h3><p class="muted xs">Model wind at {n['summit_level']} hPa, {level_h}. Ridge and summit winds can be much stronger than in the valleys.</p>{chart_wind(z)}</div>
-  </div>
-</section>
-<section class="sec">
-  <div class="sec-head"><h2>Next 72 hours</h2><p class="muted">Every three hours, Nepal time. Snow is the total for the preceding three hours.</p></div>
-  <div class="tbl"><table class="hours"><thead><tr><th scope="col">Time</th><th scope="col"><span class="sr">Weather</span></th><th scope="col">{esc(z['base']['name'])}</th><th scope="col">{esc(z['top']['name'])}</th><th scope="col">Snow</th><th scope="col">Gusts</th><th scope="col">Freezing level</th><th scope="col">Summit wind</th></tr></thead><tbody>{rows}</tbody></table></div>
-</section>
-<section class="sec about-zone">
-  <div class="sec-head"><h2>About {esc(z['name'])}</h2></div>
-  <p>{esc(z['about'])}</p>
-  <p class="muted"><b>Best season:</b> {esc(z['season'])}.</p>
-  <p><a class="more" href="{esc(z['guide'][1])}?{UTM}_{z['slug']}_guide" rel="noopener">{esc(z['guide'][0])} →</a> <span class="muted xs">from King of the Hill</span></p>
-</section>
-{kit_section([z])}
+</div>
 {sponsored(z)}
-<section class="sec others"><div class="sec-head"><h2>Other zones</h2></div><div class="other-list">{others}</div></section>
-<section class="sec note"><p class="muted">Model forecasts for the stated elevations, not observations. Not an avalanche forecast. Check conditions with local guides and Nepal's <a href="https://www.dhm.gov.np/" rel="noopener">Department of Hydrology and Meteorology</a>.</p></section>
+<p class="note">Model forecasts for the stated elevations, not observations. Not an avalanche forecast. Check conditions with local guides and Nepal's <a href="https://www.dhm.gov.np/" rel="noopener">Department of Hydrology and Meteorology</a>.</p>
 """
-    title = f"{z['name']} snow and weather forecast | {SITE_NAME}"
-    desc = (f"Live snow and weather for {z['name']}, Nepal: new snow, freezing level, summit winds and a 10-day forecast "
-            f"for {z['base']['name']} ({z['base']['elev']:,}m) and {z['top']['name']} ({z['top']['elev']:,}m). Updated every 3 hours.")
+    title = f"{z['name']} snow forecast | {SITE_NAME}"
+    desc = (f"Snow forecast for {z['name']}, Nepal: 6-day AM, PM and night forecast for {z['base']['name']} ({z['base']['elev']:,}m) "
+            f"and {z['top']['name']} ({z['top']['elev']:,}m), with new snow, freezing level and summit winds. Updated every 3 hours.")
     schema = {"@context": "https://schema.org", "@type": "WebPage", "name": title, "description": desc,
               "url": f"{SITE_URL}/{z['slug']}/", "dateModified": data["updated_utc"],
               "about": {"@type": "Place", "name": z["name"], "geo": {"@type": "GeoCoordinates", "latitude": z["lat"], "longitude": z["lon"], "elevation": z["top"]["elev"]},
                         "containedInPlace": {"@type": "Country", "name": "Nepal"}}}
-    return page(title, desc, f"{z['slug']}/", body, rel, schema)
+    return page(title, desc, f"{z['slug']}/", body, rel, schema, current=f"{z['slug']}/")
 
 def render_about(data):
     rel = "../"
     zl = "".join(f'<li><b>{esc(z["name"])}</b>: {esc(z["base"]["name"])} {z["base"]["elev"]:,}m and {esc(z["top"]["name"])} {z["top"]["elev"]:,}m</li>' for z in data["zones"])
-    body = f"""
-<nav class="crumbs"><a href="../">All zones</a><span>/</span>How it works</nav>
-<section class="prose">
-  <h1>How it works</h1>
-  <p>Nepal has no network of mountain weather stations or snow reports like the Alps. So this site does the next best thing: every three hours it asks global weather models for a forecast at two heights in each ski zone, the place you sleep and the place you ski to, and turns the numbers into something you can read at a glance.</p>
+    inner = f"""
+  <p>Nepal has no network of mountain weather stations or snow reports like the Alps. So this site does the next best thing: every three hours it asks global weather models for a forecast at two heights in each ski zone, the camp and the summit, and turns the numbers into tables you can read at a glance.</p>
   <h2>Where the data comes from</h2>
-  <p>Forecasts come from <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a>, which combines models from national weather services, including ECMWF and NOAA's GFS, and adjusts temperature to the exact elevation we ask for. The data is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>. We summarise it into daily and three-hourly figures; we don't change the underlying values.</p>
+  <p>Forecasts come from <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a>, which combines models from national weather services, including ECMWF and NOAA's GFS, and adjusts temperature to the exact elevation we ask for. The data is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>. We summarise it into daily and six-hourly figures; we don't change the underlying values.</p>
   <h2>The zones</h2>
   <ul>{zl}</ul>
-  <h2>What the numbers mean</h2>
+  <h2>Reading the forecast table</h2>
   <ul>
-    <li><b>New snow</b> is the model's snowfall at the zone's lower elevation. Models smooth out mountains, so real totals on high slopes can be much bigger or smaller.</li>
+    <li><b>AM, PM and night</b> are 06:00 to 12:00, 12:00 to 18:00 and 18:00 to 06:00, Nepal time. Switch between the top and the base of each zone with the tabs above the table.</li>
+    <li><b>New snow</b> is the model's snowfall at that height. Models smooth out mountains, so real totals on high slopes can be much bigger or smaller. Blue cells get darker as totals rise.</li>
+    <li><b>Temperatures</b> are shaded blue below freezing and red above it. Feels like includes wind chill.</li>
+    <li><b>Wind</b> is the strongest in each period, with an arrow showing where it blows to. Orange cells mean 40 km/h or more.</li>
+    <li><b>Summit wind</b> is the model wind at a standard pressure level: 500 hPa (about 5,600m) or 400 hPa (about 7,200m), whichever is closer to the summit.</li>
     <li><b>Freezing level</b> is the height where the air is at 0°C. Above it, precipitation falls as snow.</li>
-    <li><b>Wind near summit height</b> is the model wind at a standard pressure level: 500 hPa (about 5,600m) or 400 hPa (about 7,200m), whichever is closer to the summit.</li>
     <li><b>Outlook</b>: <i>Fresh snow</i> means at least 10cm in the last 72 hours (or 5cm in 24 hours, or snowing now). <i>Snow on the way</i> means at least 10cm forecast in the next 72 hours. <i>Strong winds up high</i> means summit-height winds of 70 km/h or more in the next 48 hours. Otherwise <i>Settled</i>.</li>
-    <li><b>Looks best</b> picks the day in the next week with the lightest gusts and clearest daytime sky, and no heavy snow. It's a pointer, not a promise.</li>
+    <li><b>Best looking day</b> picks the day in the next week with the lightest gusts and clearest daytime sky, and no heavy snow. It's a pointer, not a promise.</li>
   </ul>
   <h2>What it isn't</h2>
   <p>This is not an avalanche forecast and it is not a safety tool. Weather in the Himalaya changes fast, and models struggle with steep, high terrain. Always check with local guides and Nepal's <a href="https://www.dhm.gov.np/" rel="noopener">Department of Hydrology and Meteorology</a> before you go.</p>
@@ -799,14 +864,14 @@ def render_about(data):
   <p>This site is built and paid for by <a href="{SPONSOR['sponsor']['url']}?{UTM}_about" rel="sponsored noopener">King of the Hill</a>, who run guided ski expeditions in Nepal. Their trips appear as clearly marked sponsored placements. The forecasts are the same whoever you ski with.</p>
   <h2>Open data</h2>
   <p>Everything on the site is available as <a href="../data/conditions.json">JSON</a>, and the code is <a href="https://github.com/Kingofthehillappjester/nepal-ski-conditions" rel="noopener">on GitHub</a>. A daily snapshot is kept in the repository, so the season's history builds up over time.</p>
-</section>
 """
-    return page(f"How it works | {SITE_NAME}", "How Nepal Ski Conditions builds its forecasts for Nepal's ski zones, what the numbers mean, and where the data comes from.", "about/", body, rel)
+    body = f'<p class="crumbs"><a href="../">Home</a> › How it works</p><div class="title"><h1>How it works</h1></div>{box("About this site", inner, "prose")}'
+    return page(f"How it works | {SITE_NAME}", "How Nepal Ski Conditions builds its forecasts for Nepal's ski zones, what the numbers mean, and where the data comes from.", "about/", body, rel, current="about/")
 
 def render_404():
     home = SITE_URL + "/"
-    body = f'<section class="prose"><h1>Page not found</h1><p><a href="{home}">See all ski zones →</a></p></section>'
-    return page(f"Not found | {SITE_NAME}", "Page not found.", "404.html", body, home)
+    body = f'<div class="title"><h1>Page not found</h1><p class="sub"><a href="{home}">See all ski zones »</a></p></div>'
+    return page(f"Not found | {SITE_NAME}", "Page not found.", "404.html", body, home, current="-")
 
 # ---------------------------------------------------------------- build
 
@@ -824,7 +889,7 @@ def build(raw):
     (DIST / "about" / "index.html").write_text(render_about(data))
     (DIST / "404.html").write_text(render_404())
     public = {"updated": data["updated"] + "+05:45", "source": "Open-Meteo.com (CC BY 4.0)", "site": SITE_URL,
-              "zones": [{k: z[k] for k in ("slug", "name", "region", "lat", "lon", "base", "top", "now", "snow", "outlook", "days")} for z in data["zones"]]}
+              "zones": [{k: z[k] for k in ("slug", "name", "region", "lat", "lon", "base", "top", "now", "snow", "snow_top", "outlook", "days")} for z in data["zones"]]}
     (DIST / "data" / "conditions.json").write_text(json.dumps(public, ensure_ascii=False))
     urls = [""] + [f"{z['slug']}/" for z in data["zones"]] + ["about/"]
     lastmod = data["updated"][:10]
