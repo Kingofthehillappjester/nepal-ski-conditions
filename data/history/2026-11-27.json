@@ -1,0 +1,74 @@
+{
+ "annapurna-sanctuary": {
+  "date": "2026-11-27",
+  "base_snow": 0.0,
+  "top_snow": 0.0,
+  "base_min": -8.0,
+  "base_max": 1.0,
+  "top_min": -19.1,
+  "top_max": -9.8
+ },
+ "thorong-la": {
+  "date": "2026-11-27",
+  "base_snow": 0.0,
+  "top_snow": 0.0,
+  "base_min": -7.6,
+  "base_max": 2.7,
+  "top_min": -19.7,
+  "top_max": -7.7
+ },
+ "langtang": {
+  "date": "2026-11-27",
+  "base_snow": 0.0,
+  "top_snow": 0.0,
+  "base_min": -13.4,
+  "base_max": 5.2,
+  "top_min": -21.8,
+  "top_max": -8.8
+ },
+ "mera-peak": {
+  "date": "2026-11-27",
+  "base_snow": 0.0,
+  "top_snow": 0.0,
+  "base_min": -18.2,
+  "base_max": -7.4,
+  "top_min": -27.2,
+  "top_max": -15.6
+ },
+ "island-peak": {
+  "date": "2026-11-27",
+  "base_snow": 0.0,
+  "top_snow": 0.0,
+  "base_min": -20.2,
+  "base_max": -5.3,
+  "top_min": -26.8,
+  "top_max": -14.8
+ },
+ "himlung-himal": {
+  "date": "2026-11-27",
+  "base_snow": 0.0,
+  "top_snow": 0.0,
+  "base_min": -17.6,
+  "base_max": -6.3,
+  "top_min": -30.5,
+  "top_max": -22.2
+ },
+ "putha-hiunchuli": {
+  "date": "2026-11-27",
+  "base_snow": 0.0,
+  "top_snow": 0.0,
+  "base_min": -13.9,
+  "base_max": -3.6,
+  "top_min": -29.1,
+  "top_max": -18.9
+ },
+ "kalinchowk": {
+  "date": "2026-11-27",
+  "base_snow": 0.0,
+  "top_snow": 0.0,
+  "base_min": -3.4,
+  "base_max": 8.2,
+  "top_min": -7.2,
+  "top_max": 5.4
+ }
+}
